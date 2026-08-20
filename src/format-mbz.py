@@ -1,5 +1,4 @@
-import sys, os, pydub
-# audioop-lts-0.2.2
+import sys, os, pydub, re
 
 ########################## Function section ##########################
 def show_help():
@@ -33,19 +32,30 @@ def get_music_len(music_file):
     final_duration = f"{duration_min}:{remaining_seconds:{0}{2}}"
     return final_duration
 
-def extract_infos_from_filename(filename, artist_pos, song_pos, extension):
+def extract_infos_from_filename(filename, artist_pos, song_pos = 0, extension = "mp3"):
     raw_infos = filename.split(" - ")
     artist_pos = int(artist_pos)
     song_pos = int(song_pos)
+    first_element_to_clean = raw_infos[0]
+    track_num_regex = re.search("^[0-9]{0,}", first_element_to_clean)
+    track_num = first_element_to_clean[track_num_regex.start():track_num_regex.end()].strip('._ ')
+    first_element_cleaned = re.sub("^[0-9]{0,}", '', first_element_to_clean)
+
     if artist_pos > -1:
-        artist = raw_infos[artist_pos]
+        if artist_pos == 0:
+            artist = first_element_cleaned
+            song = raw_infos[song_pos]
+        else:
+            artist = raw_infos[artist_pos]
+            song = first_element_cleaned
     else:
         artist = ""
-    song = raw_infos[song_pos]
+        song = first_element_cleaned
     clean_ext = extension.strip('.')
     ext_index = song.find(f".{clean_ext}")
-    song_name = song[0:ext_index]
-    return artist, song_name
+    song_name = song[0:ext_index].strip('._ -')
+
+    return track_num, artist, song_name
 ######################################################################
 
 data_needed = {
@@ -110,12 +120,12 @@ if data_needed["path"] == "":
     show_help()
 
 scanned_dir = os.scandir(data_needed["path"])
-counter = 1
 print("Formating datas")
 for entry in scanned_dir:
     if entry.is_file():
-        track_num = f"{counter:{0}{2}}."
-        fn_artist, fn_song = extract_infos_from_filename(entry.name, data_needed["artist_pos"], data_needed["song_pos"], data_needed["extension"])
+        if data_needed["song_pos"] == -1 and data_needed["artist_pos"] == -1:
+            data_needed["song_pos"] = 0
+        fn_track_number, fn_artist, fn_song = extract_infos_from_filename(entry.name, data_needed["artist_pos"], data_needed["song_pos"], data_needed["extension"])
         
         if data_needed["artist"] != "" :
             artist_segment = f"- {data_needed['artist']} "
@@ -125,15 +135,14 @@ for entry in scanned_dir:
             else:
                 print("You may need an artist for MusicBrainz :^)")
                 show_help() 
-            
+
+        track_num = f"{fn_track_number:{0}{2}}."
         new_track = f"{track_num} {fn_song} {artist_segment}({get_music_len(entry.path)})"
         data_needed["tracks"].append(new_track)
-        counter += 1
-        if counter > 2:
-            break
 
+sorted_tracklist = sorted(data_needed["tracks"])
 with open(data_needed["outputfile"], 'w') as tracklist_file:
-    for t in data_needed["tracks"]:
+    for t in sorted_tracklist:
         tracklist_file.write(t)
         tracklist_file.write("\n")
 print(f"Your tracklist is save in {data_needed['outputfile']}")
