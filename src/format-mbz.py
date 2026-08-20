@@ -18,6 +18,7 @@ def show_help():
     -sp, --song-pos   : Position of the song name in the file name.
     -e,  --extension  : Extention of the files.
     -o,  --output     : Output file for your tracklist.
+    -v,  --verbose    : Show logs for every file, usefull for debugging
 
     Enjoy !"""
     print(help_msg)
@@ -30,6 +31,9 @@ def get_music_len(music_file):
     remaining_seconds = duration_sec % 60
 
     final_duration = f"{duration_min}:{remaining_seconds:{0}{2}}"
+    if data_needed["debug_mode"]:
+        print("Duration in ms:", len(audio))
+        print("Duration formated:", final_duration)
     return final_duration
 
 def extract_infos_from_filename(filename, artist_pos, song_pos = 0, extension = "mp3"):
@@ -39,7 +43,12 @@ def extract_infos_from_filename(filename, artist_pos, song_pos = 0, extension = 
     first_element_to_clean = raw_infos[0]
     track_num_regex = re.search("^[0-9]{0,}", first_element_to_clean)
     track_num = first_element_to_clean[track_num_regex.start():track_num_regex.end()].strip('._ ')
-    first_element_cleaned = re.sub("^[0-9]{0,}", '', first_element_to_clean)
+    first_element_cleaned = re.sub("^[0-9]{0,}", '', first_element_to_clean).strip('._ ')
+
+    if data_needed["debug_mode"]:
+        print("Filename splited:", raw_infos)
+        print("Track number split from the first element:", track_num)
+        print("First element without the number:", first_element_cleaned)
 
     if artist_pos > -1:
         if artist_pos == 0:
@@ -55,10 +64,14 @@ def extract_infos_from_filename(filename, artist_pos, song_pos = 0, extension = 
     ext_index = song.find(f".{clean_ext}")
     song_name = song[0:ext_index].strip('._ -')
 
+    if data_needed["debug_mode"]:
+        print("Track name without the extension:", song_name)
+
     return track_num, artist, song_name
 ######################################################################
 
 data_needed = {
+    "debug_mode": False,
     "path": "",
     "artist": "",
     "artist_pos": -1,
@@ -69,6 +82,8 @@ data_needed = {
 }
 if len(sys.argv) > 2:
     for argument in sys.argv:
+        if argument in ('-v', '--verbose'):
+            data_needed["debug_mode"] = True
         if argument in ('-p', '--path'):
             path = sys.argv[sys.argv.index(argument)+1]
             if path != '':
@@ -122,7 +137,7 @@ if data_needed["path"] == "":
 scanned_dir = os.scandir(data_needed["path"])
 print("Formating datas")
 for entry in scanned_dir:
-    if entry.is_file():
+    if entry.is_file() and entry.name.endswith(data_needed["extension"]):
         if data_needed["song_pos"] == -1 and data_needed["artist_pos"] == -1:
             data_needed["song_pos"] = 0
         fn_track_number, fn_artist, fn_song = extract_infos_from_filename(entry.name, data_needed["artist_pos"], data_needed["song_pos"], data_needed["extension"])
@@ -138,6 +153,13 @@ for entry in scanned_dir:
 
         track_num = f"{fn_track_number:{0}{2}}."
         new_track = f"{track_num} {fn_song} {artist_segment}({get_music_len(entry.path)})"
+        if(data_needed["debug_mode"]):
+            print(f"""Informations for the file '{entry.name}' :
+Number : '{track_num}'
+Name   : '{fn_song}'
+Artist : '{artist_segment.strip('- .')}'
+----------------------------------------------------
+""")
         data_needed["tracks"].append(new_track)
 
 sorted_tracklist = sorted(data_needed["tracks"])
